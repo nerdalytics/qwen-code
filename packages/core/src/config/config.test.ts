@@ -570,6 +570,23 @@ describe('bareDisablementBlocksQualifiedGrantWarnings', () => {
     ).toContain("The removal also re-enables 'other:pdf'");
   });
 
+  it('never advises re-adding a skill whose registry identity is the bare entry', () => {
+    // Following an add-back advice for the local skill would re-block the
+    // opt-in under either-spelling matching and reprint this same warning,
+    // so the advice must name the limitation instead of the entry.
+    const advice = warn(
+      ['rust:pdf'],
+      ['pdf'],
+      ['pdf'],
+      [rustPdf, { name: 'pdf' }],
+    ).join('\n');
+
+    expect(advice).toContain(
+      "'pdf' cannot be blocked on its own while 'rust:pdf' stays enabled",
+    );
+    expect(advice).not.toContain("Add 'pdf' to skills.disabled");
+  });
+
   it('advises removal for a hard block, since rewriting it would silence the warning without unblocking', () => {
     expect(warn(['rust:pdf'], ['pdf'], ['pdf'])).toEqual([hardAdvice]);
   });

@@ -1658,10 +1658,13 @@ export function bareDisablementBlocksQualifiedGrantWarnings(
     // and silence this warning), a defaultDisabled entry is cancelled by
     // the identical spelling.
     if (lists.hardDisabled.has(authored)) {
-      // Removing the bare entry re-enables every skill it blocks, so name
-      // the siblings the removal unlocks and the qualified entries that
-      // keep blocking them.
-      const siblings = [
+      // Removing the bare entry re-enables every skill it blocks. Only a
+      // skill whose registry name differs from the bare entry can be
+      // re-blocked on its own afterwards; a skill whose registry identity
+      // IS the bare entry shares every matching entry with the opt-in, so
+      // advising the user to add it back would re-block the opt-in too and
+      // reprint this same warning, a fixed point.
+      const unlocked = [
         ...new Set(
           skills
             .filter((other) => {
@@ -1675,14 +1678,26 @@ export function bareDisablementBlocksQualifiedGrantWarnings(
             .map((other) => other.name.trim().toLowerCase()),
         ),
       ];
-      const sideEffect = siblings.length
-        ? ` The removal also re-enables ${siblings
-            .map((name) => `'${name}'`)
-            .join(', ')}; add ${siblings
-            .map((name) => `'${name}'`)
-            .join(', ')} to skills.disabled to keep ` +
-          `${siblings.length > 1 ? 'them' : 'it'} blocked.`
-        : '';
+      const names = (list: string[]) =>
+        list.map((name) => `'${name}'`).join(', ');
+      const reBlockable = unlocked.filter((name) => name !== authored);
+      const notAlone = unlocked.filter((name) => name === authored);
+      let sideEffect = '';
+      if (unlocked.length) {
+        sideEffect = ` The removal also re-enables ${names(unlocked)}.`;
+        if (reBlockable.length) {
+          sideEffect +=
+            ` Add ${names(reBlockable)} to skills.disabled to ` +
+            `keep ${reBlockable.length > 1 ? 'them' : 'it'} blocked.`;
+        }
+        if (notAlone.length) {
+          sideEffect +=
+            ` ${names(notAlone)} cannot be blocked on ` +
+            `${notAlone.length > 1 ? 'their' : 'its'} own while ` +
+            `'${registryName}' stays enabled, because any entry matching ` +
+            `${names(notAlone)} also matches '${registryName}'.`;
+        }
+      }
       warnings.push(
         `Warning: skills.enabled opts in '${registryName}' but ` +
           `'${authored}' in skills.disabled still blocks it — hard entries ` +
