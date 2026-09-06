@@ -1570,7 +1570,7 @@ export interface SkillSettingsLists {
 export function bareEnabledGrantWarnings(
   lists: SkillSettingsLists,
   skills: ReadonlyArray<{ name: string; authoredName?: string }>,
-  defaultOffAuthored: ReadonlySet<string> = new Set(),
+  defaultOffNames: ReadonlySet<string> = new Set(),
 ): string[] {
   if (lists.enabled.size === 0) return [];
   const registry = new Set(
@@ -1603,16 +1603,25 @@ export function bareEnabledGrantWarnings(
     if (lists.defaultDisabled.has(authored)) {
       // For a default-off extension skill the pair no longer enables
       // anything: pre-rename the enable beat the defaultDisabled entry, now
-      // the bare grant is void and the declared default decides. Name the
-      // flip or it stays silent.
-      if (defaultOffAuthored.has(authored)) {
+      // the bare grant is void and the declared default decides. Name only
+      // the members that really default off: a default-on sibling stays
+      // enabled under the cancelled pair, and naming it would send the user
+      // to rewrite a grant that sibling never needed.
+      const offNames = registryNames.filter((name) =>
+        defaultOffNames.has(name),
+      );
+      if (offNames.length) {
+        const offPlural = offNames.length > 1;
+        const offList = offNames.map((name) => `'${name}'`).join(', ');
         warnings.push(
           `Warning: skills.enabled and skills.defaultDisabled both list ` +
             `'${authored}' by bare name. The pair cancels the disablement ` +
-            `but no longer enables the extension ${skillWord} ${names}, ` +
-            `which ${plural ? 'default' : 'defaults'} off. Write the ` +
-            `registered name in skills.enabled to enable ` +
-            `${plural ? 'them' : 'it'}.`,
+            `but no longer enables the extension ` +
+            `${offPlural ? 'skills' : 'skill'} ${offList}, which ` +
+            `${offPlural ? 'default' : 'defaults'} off. Replace the bare ` +
+            `'${authored}' with ${offList} in both skills.enabled and ` +
+            `skills.defaultDisabled to enable ` +
+            `${offPlural ? 'them' : 'it'}.`,
         );
       }
       continue;
@@ -3626,7 +3635,7 @@ export class Config {
               extension.id,
             ]),
           );
-          const defaultOffAuthored = new Set<string>();
+          const defaultOffNames = new Set<string>();
           for (const skill of skills) {
             const extensionId = skill.extensionName
               ? extensionIdByName.get(skill.extensionName)
@@ -3637,13 +3646,11 @@ export class Config {
               authoredSkillName(skill),
             );
             if (state.defaultEnabled === false && !state.workspaceEnabled) {
-              defaultOffAuthored.add(
-                authoredSkillName(skill).trim().toLowerCase(),
-              );
+              defaultOffNames.add(skill.name.trim().toLowerCase());
             }
           }
           this.warnings.push(
-            ...bareEnabledGrantWarnings(lists, skills, defaultOffAuthored),
+            ...bareEnabledGrantWarnings(lists, skills, defaultOffNames),
             ...bareDisablementBlocksQualifiedGrantWarnings(
               lists,
               this.getDisabledSkillNames(),
